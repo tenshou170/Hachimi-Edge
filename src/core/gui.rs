@@ -534,7 +534,9 @@ impl Gui {
                         ui.separator();
 
                         ui.heading(t!("menu.danger_zone_heading"));
-                        ui.label(t!("menu.danger_zone_warning"));
+                        ui.vertical(|ui| {
+                            ui.label(t!("menu.danger_zone_warning"));
+                        });
                         if ui.button(t!("menu.soft_restart")).clicked() {
                             show_window = Some(Box::new(SimpleYesNoDialog::new(
                                 &t!("confirm_dialog_title"),
