@@ -2,17 +2,18 @@ use std::sync::Mutex;
 
 use fnv::FnvHashMap;
 use once_cell::sync::Lazy;
-use sqlparser::{
-    ast::BinaryOperator,
-    dialect::SQLiteDialect,
-    keywords::Keyword,
-    parser::Parser
+use sqlparser::{ast::BinaryOperator, dialect::SQLiteDialect, keywords::Keyword, parser::Parser};
+
+use crate::il2cpp::{
+    ext::Il2CppStringExt,
+    sql::{self, ExprExt, SelectExt, SelectItemExt},
+    symbols::get_method_addr,
+    types::*,
 };
 
-use crate::il2cpp::{ext::Il2CppStringExt, sql::{self, ExprExt, SelectExt, SelectItemExt}, symbols::get_method_addr, types::*};
-
-pub static SELECT_QUERIES: Lazy<Mutex<FnvHashMap<usize, Box<dyn sql::SelectQueryState + Send + Sync>>>> =
-    Lazy::new(|| Mutex::new(FnvHashMap::default()));
+pub static SELECT_QUERIES: Lazy<
+    Mutex<FnvHashMap<usize, Box<dyn sql::SelectQueryState + Send + Sync>>>,
+> = Lazy::new(|| Mutex::new(FnvHashMap::default()));
 
 #[inline(never)]
 fn parse_query(query: *mut Il2CppObject, sql: *const Il2CppString) {
@@ -43,13 +44,14 @@ fn parse_query(query: *mut Il2CppObject, sql: *const Il2CppString) {
         };
 
         // Create the query state
-        let mut query_state: Box<dyn sql::SelectQueryState + Send + Sync> = match table_name.as_ref() {
-            "text_data" => Box::new(sql::TextDataQuery::default()),
-            "character_system_text" => Box::new(sql::CharacterSystemTextQuery::default()),
-            "race_jikkyo_comment" => Box::new(sql::RaceJikkyoCommentQuery::default()),
-            "race_jikkyo_message" => Box::new(sql::RaceJikkyoMessageQuery::default()),
-            _ => return
-        };
+        let mut query_state: Box<dyn sql::SelectQueryState + Send + Sync> =
+            match table_name.as_ref() {
+                "text_data" => Box::new(sql::TextDataQuery::default()),
+                "character_system_text" => Box::new(sql::CharacterSystemTextQuery::default()),
+                "race_jikkyo_comment" => Box::new(sql::RaceJikkyoCommentQuery::default()),
+                "race_jikkyo_message" => Box::new(sql::RaceJikkyoMessageQuery::default()),
+                _ => return,
+            };
 
         // Add columns
         let mut i = 0;
@@ -65,7 +67,9 @@ fn parse_query(query: *mut Il2CppObject, sql: *const Il2CppString) {
         if let Some(selection) = select.selection {
             // this should visit them in order (column1 = ? AND column2 = ? ...)
             for expr in selection.binary_op_iter() {
-                if *expr.op != BinaryOperator::Eq { continue; }
+                if *expr.op != BinaryOperator::Eq {
+                    continue;
+                }
 
                 if let Some(name) = expr.left.get_ident_value() {
                     if expr.right.is_placeholder_value() {
@@ -77,11 +81,15 @@ fn parse_query(query: *mut Il2CppObject, sql: *const Il2CppString) {
         }
 
         // Add query state
-        SELECT_QUERIES.lock().unwrap().insert(query as usize, query_state);
+        SELECT_QUERIES
+            .lock()
+            .unwrap()
+            .insert(query as usize, query_state);
     }
 }
 
-type QueryFn = extern "C" fn(this: *mut Il2CppObject, sql: *const Il2CppString) -> *mut Il2CppObject;
+type QueryFn =
+    extern "C" fn(this: *mut Il2CppObject, sql: *const Il2CppString) -> *mut Il2CppObject;
 extern "C" fn Query(this: *mut Il2CppObject, sql: *const Il2CppString) -> *mut Il2CppObject {
     trace!("Query");
     let query = get_orig_fn!(Query, QueryFn)(this, sql);
@@ -89,8 +97,12 @@ extern "C" fn Query(this: *mut Il2CppObject, sql: *const Il2CppString) -> *mut I
     query
 }
 
-type PreparedQueryFn = extern "C" fn(this: *mut Il2CppObject, sql: *const Il2CppString) -> *mut Il2CppObject;
-extern "C" fn PreparedQuery(this: *mut Il2CppObject, sql: *const Il2CppString) -> *mut Il2CppObject {
+type PreparedQueryFn =
+    extern "C" fn(this: *mut Il2CppObject, sql: *const Il2CppString) -> *mut Il2CppObject;
+extern "C" fn PreparedQuery(
+    this: *mut Il2CppObject,
+    sql: *const Il2CppString,
+) -> *mut Il2CppObject {
     trace!("PreparedQuery");
     let query = get_orig_fn!(PreparedQuery, PreparedQueryFn)(this, sql);
     parse_query(query, sql);

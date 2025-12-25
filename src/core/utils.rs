@@ -1,30 +1,49 @@
+#![allow(clippy::not_unsafe_ptr_arg_deref)]
 use std::{borrow::Cow, fs::File, io::Write, path::Path, time::SystemTime};
 
 use serde::Serialize;
 use textwrap::{core::Word, wrap_algorithms, WordSeparator::UnicodeBreakProperties};
 use unicode_width::UnicodeWidthChar;
 
-use crate::{core::Gui, il2cpp::{ext::{Il2CppStringExt, StringExt}, types::Il2CppString}};
+use crate::{
+    core::Gui,
+    il2cpp::{
+        ext::{Il2CppStringExt, StringExt},
+        types::Il2CppString,
+    },
+};
 
 use super::{Error, Hachimi};
 
 pub fn concat_unix_path(left: &str, right: &str) -> String {
+    let left = left.trim_end_matches('/');
+    let right = right.trim_start_matches('/');
+    if left.is_empty() {
+        return right.to_owned();
+    }
+    if right.is_empty() {
+        return left.to_owned();
+    }
     let mut str = String::with_capacity(left.len() + 1 + right.len());
     str.push_str(left);
-    str.push_str("/");
+    str.push('/');
     str.push_str(right);
     str
 }
 
 pub fn print_json_entry(key: &str, value: &str) {
-    info!("{}: {},", serde_json::to_string(key).unwrap(), serde_json::to_string(value).unwrap());
+    info!(
+        "{}: {},",
+        serde_json::to_string(key).unwrap(),
+        serde_json::to_string(value).unwrap()
+    );
 }
 
 pub struct IsolateTags<'a> {
     s: &'a str,
     bytes: std::str::Bytes<'a>,
     i: usize,
-    current_byte: Option<u8>
+    current_byte: Option<u8>,
 }
 
 impl<'a> IsolateTags<'a> {
@@ -34,7 +53,7 @@ impl<'a> IsolateTags<'a> {
             current_byte: bytes.next(),
             s,
             bytes,
-            i: 0
+            i: 0,
         }
     }
 }
@@ -43,9 +62,7 @@ impl<'a> Iterator for IsolateTags<'a> {
     type Item = (&'a str, bool);
 
     fn next(&mut self) -> Option<Self::Item> {
-        if self.current_byte.is_none() {
-            return None;
-        }
+        self.current_byte?;
 
         let start = self.i;
         // Unity tags
@@ -64,7 +81,7 @@ impl<'a> Iterator for IsolateTags<'a> {
                         if expecting_tag_name {
                             if !in_closing_tag {
                                 // Check for a matching closing tag after
-                                let tag_name = &self.s[tag_start+1..self.i];
+                                let tag_name = &self.s[tag_start + 1..self.i];
                                 let mut closing_tag = String::with_capacity(3 + tag_name.len());
                                 closing_tag += "</";
                                 closing_tag += tag_name;
@@ -91,8 +108,7 @@ impl<'a> Iterator for IsolateTags<'a> {
                                 break;
                             }
                             return Some((&self.s[start..self.i], false));
-                        }
-                        else if in_closing_tag {
+                        } else if in_closing_tag {
                             // Invalid character
                             in_tag = false;
                         }
@@ -100,8 +116,7 @@ impl<'a> Iterator for IsolateTags<'a> {
                     b'/' => {
                         if self.i == tag_start + 1 {
                             in_closing_tag = true;
-                        }
-                        else if expecting_tag_name {
+                        } else if expecting_tag_name {
                             in_tag = false;
                         }
                     }
@@ -111,13 +126,11 @@ impl<'a> Iterator for IsolateTags<'a> {
                         }
                     }
                 }
-            }
-            else if in_expression {
-                if c == b')'  {
+            } else if in_expression {
+                if c == b')' {
                     if !self.s[self.i..].contains(")") {
                         in_expression = false;
-                    }
-                    else {
+                    } else {
                         loop {
                             self.i += 1;
                             self.current_byte = self.bytes.next();
@@ -131,21 +144,17 @@ impl<'a> Iterator for IsolateTags<'a> {
                         return Some((&self.s[start..self.i], false));
                     }
                 }
-            }
-            else if c == b'<' {
+            } else if c == b'<' {
                 if start == self.i {
                     in_tag = true;
                     expecting_tag_name = true;
                     tag_start = self.i;
-                }
-                else {
+                } else {
                     break;
                 }
-            }
-            else if c == b'$' {
+            } else if c == b'$' {
                 expecting_expr_open = true;
-            }
-            else if c == b'(' {
+            } else if c == b'(' {
                 if expecting_expr_open {
                     if self.i != start + 1 {
                         self.i -= 1;
@@ -156,8 +165,7 @@ impl<'a> Iterator for IsolateTags<'a> {
                     in_expression = true;
                     expecting_expr_open = false;
                 }
-            }
-            else if expecting_expr_open {
+            } else if expecting_expr_open {
                 expecting_expr_open = false;
             }
 
@@ -176,7 +184,8 @@ fn custom_word_separator(line: &str) -> Box<dyn Iterator<Item = Word<'_>> + '_> 
     // iterator and split them based on the index.
     let mut isolate_iter = IsolateTags::new(line);
 
-    let mut unicode_break_iter: Box<dyn Iterator<Item = Word<'_>> + '_> = Box::new(std::iter::empty());
+    let mut unicode_break_iter: Box<dyn Iterator<Item = Word<'_>> + '_> =
+        Box::new(std::iter::empty());
     Box::new(std::iter::from_fn(move || {
         // Continue breaking current split
         let break_res = unicode_break_iter.next();
@@ -194,20 +203,20 @@ fn custom_word_separator(line: &str) -> Box<dyn Iterator<Item = Word<'_>> + '_> 
                         unicode_break_iter = iter;
                         return break_res;
                     }
-                }
-                else {
                     unicode_break_iter = Box::new(std::iter::empty());
                     return Some(Word::from(next_section));
                 }
-            }
-            else {
+            } else {
                 return None;
             }
         }
     }))
 }
 
-fn custom_wrap_algorithm<'a, 'b>(words: &'b [Word<'a>], line_widths: &'b [usize]) -> Vec<&'b [Word<'a>]> {
+fn custom_wrap_algorithm<'a, 'b>(
+    words: &'b [Word<'a>],
+    line_widths: &'b [usize],
+) -> Vec<&'b [Word<'a>]> {
     // Create intermediate buffer that doesn't contain formatting tags
     let mut clean_fragments = Vec::with_capacity(words.len());
     let mut removed_indices = Vec::with_capacity(words.len());
@@ -232,7 +241,8 @@ fn custom_wrap_algorithm<'a, 'b>(words: &'b [Word<'a>], line_widths: &'b [usize]
     }
 
     // Wrap without formatting tags
-    let wrapped = wrap_algorithms::wrap_optimal_fit(&clean_fragments, &f64_line_widths, penalties).unwrap();
+    let wrapped =
+        wrap_algorithms::wrap_optimal_fit(&clean_fragments, &f64_line_widths, penalties).unwrap();
 
     // Create results with formatting tags added back
     // Note: The break word option doesn't really affect the extra long lines since
@@ -245,8 +255,7 @@ fn custom_wrap_algorithm<'a, 'b>(words: &'b [Word<'a>], line_widths: &'b [usize]
         let mut end: usize;
         if i == wrapped.len() - 1 {
             end = words.len();
-        }
-        else {
+        } else {
             let clean_end = clean_start + line.len();
             end = start + line.len();
             loop {
@@ -257,8 +266,7 @@ fn custom_wrap_algorithm<'a, 'b>(words: &'b [Word<'a>], line_widths: &'b [usize]
                     if *index < clean_end {
                         end += 1;
                         removed_indices_i += 1;
-                    }
-                    else {
+                    } else {
                         break;
                     }
                 }
@@ -274,26 +282,45 @@ fn custom_wrap_algorithm<'a, 'b>(words: &'b [Word<'a>], line_widths: &'b [usize]
 
 pub fn wrap_text(string: &str, base_line_width: i32) -> Option<Vec<Cow<'_, str>>> {
     let config = &Hachimi::instance().localized_data.load().config;
-    if !config.use_text_wrapper { return None; }
-    Some(wrap_text_internal(string, base_line_width, config.line_width_multiplier?))
+    if !config.use_text_wrapper {
+        return None;
+    }
+    Some(wrap_text_internal(
+        string,
+        base_line_width,
+        config.line_width_multiplier?,
+    ))
 }
 
-fn wrap_text_internal(string: &str, base_line_width: i32, line_width_multiplier: f32) -> Vec<Cow<'_, str>> {
+fn wrap_text_internal(
+    string: &str,
+    base_line_width: i32,
+    line_width_multiplier: f32,
+) -> Vec<Cow<'_, str>> {
     let line_width = (base_line_width as f32 * line_width_multiplier).round() as usize;
     let options = textwrap::Options::new(line_width)
         .word_separator(textwrap::WordSeparator::Custom(custom_word_separator))
         .wrap_algorithm(textwrap::WrapAlgorithm::Custom(custom_wrap_algorithm));
-    return textwrap::wrap(string, &options);
+    textwrap::wrap(string, &options)
 }
 
-pub fn wrap_text_il2cpp(string: *mut Il2CppString, base_line_width: i32) -> Option<*mut Il2CppString> {
+pub fn wrap_text_il2cpp(
+    string: *mut Il2CppString,
+    base_line_width: i32,
+) -> Option<*mut Il2CppString> {
     let config = &Hachimi::instance().localized_data.load().config;
-    if !config.use_text_wrapper { return None; }
+    if !config.use_text_wrapper {
+        return None;
+    }
 
     Some(
-        wrap_text_internal(unsafe { &(*string).as_utf16str().to_string() }, base_line_width, config.line_width_multiplier?)
-            .join("\n")
-            .to_il2cpp_string()
+        wrap_text_internal(
+            unsafe { &(*string).as_utf16str().to_string() },
+            base_line_width,
+            config.line_width_multiplier?,
+        )
+        .join("\n")
+        .to_il2cpp_string(),
     )
 }
 
@@ -302,35 +329,55 @@ pub fn add_size_tag(string: &str, size: i32) -> String {
     let mut new_str = String::with_capacity(9 + string.len() + 7);
     new_str.push_str("<size=");
     new_str.push_str(&size.to_string());
-    new_str.push_str(">");
+    new_str.push('>');
     new_str.push_str(string);
     new_str.push_str("</size>");
     new_str
 }
 
 pub fn fit_text(string: &str, base_line_width: i32, base_font_size: i32) -> Option<String> {
-    let mult = Hachimi::instance().localized_data.load().config.line_width_multiplier?;
+    let mult = Hachimi::instance()
+        .localized_data
+        .load()
+        .config
+        .line_width_multiplier?;
     fit_text_internal(string, base_line_width, base_font_size, mult)
 }
 
 fn fit_text_internal(
-    string: &str, base_line_width: i32, base_font_size: i32, line_width_multiplier: f32
+    string: &str,
+    base_line_width: i32,
+    base_font_size: i32,
+    line_width_multiplier: f32,
 ) -> Option<String> {
     let line_width = base_line_width as f32 * line_width_multiplier;
 
     let count = string.chars().count() as f32;
     if line_width < count {
-        Some(add_size_tag(string, (base_font_size as f32 * (line_width / count)) as i32))
-    }
-    else {
+        Some(add_size_tag(
+            string,
+            (base_font_size as f32 * (line_width / count)) as i32,
+        ))
+    } else {
         None
     }
 }
 
-pub fn fit_text_il2cpp(string: *mut Il2CppString, base_line_width: i32, base_font_size: i32) -> Option<*mut Il2CppString> {
-    let mult = Hachimi::instance().localized_data.load().config.line_width_multiplier?;
-    if let Some(result) = fit_text_internal(unsafe { &(*string).as_utf16str().to_string() },
-        base_line_width, base_font_size, mult
+pub fn fit_text_il2cpp(
+    string: *mut Il2CppString,
+    base_line_width: i32,
+    base_font_size: i32,
+) -> Option<*mut Il2CppString> {
+    let mult = Hachimi::instance()
+        .localized_data
+        .load()
+        .config
+        .line_width_multiplier?;
+    if let Some(result) = fit_text_internal(
+        unsafe { &(*string).as_utf16str().to_string() },
+        base_line_width,
+        base_font_size,
+        mult,
     ) {
         return Some(result.to_il2cpp_string());
     }
@@ -339,7 +386,12 @@ pub fn fit_text_il2cpp(string: *mut Il2CppString, base_line_width: i32, base_fon
 }
 
 // WRAP IT TILL IT FITS GRAHHH BRUTE FORCE GRAHHH
-pub fn wrap_fit_text(string: &str, base_line_width: i32, mut max_line_count: i32, base_font_size: i32) -> Option<String> {
+pub fn wrap_fit_text(
+    string: &str,
+    base_line_width: i32,
+    mut max_line_count: i32,
+    base_font_size: i32,
+) -> Option<String> {
     let config = &Hachimi::instance().localized_data.load().config;
     if !config.use_text_wrapper {
         return None;
@@ -354,7 +406,6 @@ pub fn wrap_fit_text(string: &str, base_line_width: i32, mut max_line_count: i32
     let mut line_width = base_line_width as f32;
     let mut font_size = base_font_size as f32;
 
-
     loop {
         let wrapped = wrap_text_internal(string, line_width.round() as i32, line_width_multiplier);
         if wrapped.len() as i32 <= max_line_count {
@@ -365,15 +416,28 @@ pub fn wrap_fit_text(string: &str, base_line_width: i32, mut max_line_count: i32
         max_line_count += 1;
 
         let scale = prev_max_line_count as f32 / max_line_count as f32;
-        font_size = font_size as f32 * scale;
-        line_width = line_width as f32 / scale;
+        font_size *= scale;
+        line_width /= scale;
     }
 }
 
-pub fn wrap_fit_text_il2cpp(string: *mut Il2CppString, base_line_width: i32, max_line_count: i32, base_font_size: i32) -> Option<*mut Il2CppString> {
-    if Hachimi::instance().localized_data.load().config.use_text_wrapper {
-        if let Some(result) = wrap_fit_text(unsafe { &(*string).as_utf16str().to_string() },
-            base_line_width, max_line_count, base_font_size
+pub fn wrap_fit_text_il2cpp(
+    string: *mut Il2CppString,
+    base_line_width: i32,
+    max_line_count: i32,
+    base_font_size: i32,
+) -> Option<*mut Il2CppString> {
+    if Hachimi::instance()
+        .localized_data
+        .load()
+        .config
+        .use_text_wrapper
+    {
+        if let Some(result) = wrap_fit_text(
+            unsafe { &(*string).as_utf16str().to_string() },
+            base_line_width,
+            max_line_count,
+            base_font_size,
         ) {
             return Some(result.to_il2cpp_string());
         }
@@ -383,15 +447,22 @@ pub fn wrap_fit_text_il2cpp(string: *mut Il2CppString, base_line_width: i32, max
 }
 
 fn truncate_chars_internal(
-    mut chars: impl Iterator<Item = char>, mut width: usize, ellipsis: bool, line_width_multiplier: f32
+    mut chars: impl Iterator<Item = char>,
+    mut width: usize,
+    ellipsis: bool,
+    line_width_multiplier: f32,
 ) -> Option<Vec<char>> {
     width = (width as f32 * line_width_multiplier).round() as usize;
 
-    let reserved_width = if ellipsis { width.saturating_sub(1) } else { width };
+    let reserved_width = if ellipsis {
+        width.saturating_sub(1)
+    } else {
+        width
+    };
     let mut v = Vec::with_capacity(width); // it's not the actual max size but it's a good starting point
     let mut total_width = 0;
     let mut dropped_char = None;
-    while let Some(c) = chars.next() {
+    for c in chars.by_ref() {
         let char_width = c.width().unwrap_or(0);
         if char_width == 0 {
             v.push(c);
@@ -426,8 +497,7 @@ fn truncate_chars_internal(
                 return None;
             }
             true
-        }
-        else {
+        } else {
             false
         };
 
@@ -435,32 +505,48 @@ fn truncate_chars_internal(
         return if has_next_char {
             v.push('…');
             Some(v)
-        }
-        else {
+        } else {
             None
-        }
+        };
     }
 
     if dropped_char.is_some() || chars.next().is_some() {
         Some(v)
-    }
-    else {
+    } else {
         None
     }
 }
 
-pub fn truncate_chars(chars: impl Iterator<Item = char>, width: usize, ellipsis: bool) -> Option<Vec<char>> {
-    let line_width_multiplier = Hachimi::instance().localized_data.load().config.line_width_multiplier?;
+pub fn truncate_chars(
+    chars: impl Iterator<Item = char>,
+    width: usize,
+    ellipsis: bool,
+) -> Option<Vec<char>> {
+    let line_width_multiplier = Hachimi::instance()
+        .localized_data
+        .load()
+        .config
+        .line_width_multiplier?;
     truncate_chars_internal(chars, width, ellipsis, line_width_multiplier)
 }
 
-pub fn truncate_text_il2cpp(string: *mut Il2CppString, width: usize, ellipsis: bool) -> Option<*mut Il2CppString> {
-    let line_width_multiplier = Hachimi::instance().localized_data.load().config.line_width_multiplier?;
-    truncate_chars_internal(unsafe { (*string).as_utf16str().chars() }, width, ellipsis, line_width_multiplier).map(|chars|
-        chars.iter()
-            .collect::<String>()
-            .to_il2cpp_string()
+pub fn truncate_text_il2cpp(
+    string: *mut Il2CppString,
+    width: usize,
+    ellipsis: bool,
+) -> Option<*mut Il2CppString> {
+    let line_width_multiplier = Hachimi::instance()
+        .localized_data
+        .load()
+        .config
+        .line_width_multiplier?;
+    truncate_chars_internal(
+        unsafe { (*string).as_utf16str().chars() },
+        width,
+        ellipsis,
+        line_width_multiplier,
     )
+    .map(|chars| chars.iter().collect::<String>().to_il2cpp_string())
 }
 
 pub fn write_json_file<T: Serialize, P: AsRef<Path>>(data: &T, path: P) -> Result<(), Error> {
@@ -476,16 +562,18 @@ pub fn game_str_has_newline(string: *mut Il2CppString) -> bool {
     let mut got_backslash = false;
     for c in unsafe { (*string).as_utf16str().as_slice().iter() } {
         if got_backslash {
-            if *c == 0x6E { // n
+            if *c == 0x6E {
+                // n
                 return true;
             }
             got_backslash = false;
         }
 
-        if *c == 0x0A { // newline
+        if *c == 0x0A {
+            // newline
             return true;
-        }
-        else if *c == 0x5C { // backslash
+        } else if *c == 0x5C {
+            // backslash
             got_backslash = true; //
         }
     }
@@ -493,24 +581,28 @@ pub fn game_str_has_newline(string: *mut Il2CppString) -> bool {
     false
 }
 
-pub fn scale_to_aspect_ratio(sizes: (i32, i32), aspect_ratio: f32, prefer_larger: bool) -> (i32, i32) {
+pub fn scale_to_aspect_ratio(
+    sizes: (i32, i32),
+    aspect_ratio: f32,
+    prefer_larger: bool,
+) -> (i32, i32) {
     let (mut width, mut height) = sizes;
     let orig_aspect_ratio = width as f32 / height as f32;
     // Use original values if possible
     if (aspect_ratio - orig_aspect_ratio).abs() <= 0.001 {
         return sizes;
-    }
-    else if (aspect_ratio - 1.0/orig_aspect_ratio).abs() <= 0.001 {
+    } else if (aspect_ratio - 1.0 / orig_aspect_ratio).abs() <= 0.001 {
         return (height, width);
     }
 
-    let scale_by_height = if prefer_larger { height > width } else { width > height };
+    let scale_by_height = if prefer_larger {
+        height > width
+    } else {
+        width > height
+    };
     if scale_by_height {
         width = (height as f32 * aspect_ratio).round() as i32;
-        height = height;
-    }
-    else {
-        width = width;
+    } else {
         height = (width as f32 / aspect_ratio).round() as i32;
     }
 
@@ -519,7 +611,9 @@ pub fn scale_to_aspect_ratio(sizes: (i32, i32), aspect_ratio: f32, prefer_larger
 
 pub fn get_file_modified_time<P: AsRef<Path>>(path: P) -> Option<SystemTime> {
     let metadata = std::fs::metadata(path).ok()?;
-    if !metadata.is_file() { return None; }
+    if !metadata.is_file() {
+        return None;
+    }
     metadata.modified().ok()
 }
 
@@ -546,6 +640,6 @@ pub fn notify_error(message: impl AsRef<str>) {
     }
 }
 
-pub fn mul_int (base:i32, mult: f32) -> i32 {
+pub fn mul_int(base: i32, mult: f32) -> i32 {
     (base as f32 * mult).round() as i32
 }

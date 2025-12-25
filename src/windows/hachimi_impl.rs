@@ -6,10 +6,12 @@ use crate::{
     core::Hachimi,
     il2cpp::{
         hook::UnityEngine_CoreModule::{
-            FullScreenMode_ExclusiveFullScreen, FullScreenMode_FullScreenWindow,
-            QualitySettings, Screen
-        }, symbols::Thread, types::Resolution
-    }
+            FullScreenMode_ExclusiveFullScreen, FullScreenMode_FullScreenWindow, QualitySettings,
+            Screen,
+        },
+        symbols::Thread,
+        types::Resolution,
+    },
 };
 
 use super::{utils, wnd_hook};
@@ -74,30 +76,42 @@ pub struct Config {
     #[serde(default)]
     pub window_always_on_top: bool,
     #[serde(default = "Config::default_true")]
-    pub discord_rpc: bool
+    pub discord_rpc: bool,
 }
 
 impl Config {
-    fn default_vsync_count() -> i32 { -1 }
-    fn default_menu_open_key() -> u16 { windows::Win32::UI::Input::KeyboardAndMouse::VK_RIGHT.0 }
-    fn default_hide_ingame_ui_hotkey_bind() -> u16 { windows::Win32::UI::Input::KeyboardAndMouse::VK_INSERT.0 }
-    fn default_true() -> bool { true }
+    fn default_vsync_count() -> i32 {
+        -1
+    }
+    fn default_menu_open_key() -> u16 {
+        windows::Win32::UI::Input::KeyboardAndMouse::VK_RIGHT.0
+    }
+    fn default_hide_ingame_ui_hotkey_bind() -> u16 {
+        windows::Win32::UI::Input::KeyboardAndMouse::VK_INSERT.0
+    }
+    fn default_true() -> bool {
+        true
+    }
 }
 
 #[derive(Deserialize, Serialize, Copy, Clone, Default, Eq, PartialEq)]
 #[repr(i32)]
 pub enum FullScreenMode {
-    #[default] ExclusiveFullScreen = FullScreenMode_ExclusiveFullScreen,
-    FullScreenWindow = FullScreenMode_FullScreenWindow
+    #[default]
+    ExclusiveFullScreen = FullScreenMode_ExclusiveFullScreen,
+    FullScreenWindow = FullScreenMode_FullScreenWindow,
 }
 
 #[derive(Deserialize, Serialize, Copy, Clone, Default, Eq, PartialEq)]
 pub enum ResolutionScaling {
-    #[default] Default,
+    #[default]
+    Default,
     ScaleToScreenSize,
-    ScaleToWindowSize
+    ScaleToWindowSize,
 }
 
 impl ResolutionScaling {
-    pub fn is_not_default(&self) -> bool { *self != Self::Default }
+    pub fn is_not_default(&self) -> bool {
+        *self != Self::Default
+    }
 }

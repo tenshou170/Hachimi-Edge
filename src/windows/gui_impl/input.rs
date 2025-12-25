@@ -6,7 +6,7 @@ use windows::Win32::{
     System::{
         DataExchange::{CloseClipboard, GetClipboardData, OpenClipboard},
         Ole::CF_TEXT,
-        SystemServices::{MK_CONTROL, MK_SHIFT}
+        SystemServices::{MK_CONTROL, MK_SHIFT},
     },
     UI::{
         Input::KeyboardAndMouse::{
@@ -15,10 +15,10 @@ use windows::Win32::{
             VK_RIGHT, VK_SPACE, VK_TAB, VK_UP,
         },
         WindowsAndMessaging::{
-            WHEEL_DELTA, WM_CHAR, WM_KEYDOWN, WM_KEYUP,
-            WM_LBUTTONDBLCLK, WM_LBUTTONDOWN, WM_LBUTTONUP, WM_MBUTTONDBLCLK, WM_MBUTTONDOWN,
-            WM_MBUTTONUP, WM_MOUSEHWHEEL, WM_MOUSEMOVE, WM_MOUSEWHEEL, WM_RBUTTONDBLCLK,
-            WM_RBUTTONDOWN, WM_RBUTTONUP, WM_SYSKEYDOWN, WM_SYSKEYUP,
+            WHEEL_DELTA, WM_CHAR, WM_KEYDOWN, WM_KEYUP, WM_LBUTTONDBLCLK, WM_LBUTTONDOWN,
+            WM_LBUTTONUP, WM_MBUTTONDBLCLK, WM_MBUTTONDOWN, WM_MBUTTONUP, WM_MOUSEHWHEEL,
+            WM_MOUSEMOVE, WM_MOUSEWHEEL, WM_RBUTTONDBLCLK, WM_RBUTTONDOWN, WM_RBUTTONUP,
+            WM_SYSKEYDOWN, WM_SYSKEYUP,
         },
     },
 };
@@ -37,10 +37,18 @@ pub enum InputResult {
     Key,
 }
 
-pub fn process(input: &mut RawInput, zoom_factor: f32, umsg: u32, wparam: usize, lparam: isize) -> InputResult {
+pub fn process(
+    input: &mut RawInput,
+    zoom_factor: f32,
+    umsg: u32,
+    wparam: usize,
+    lparam: isize,
+) -> InputResult {
     match umsg {
         WM_MOUSEMOVE => {
-            input.events.push(Event::PointerMoved(get_pos(lparam) / zoom_factor));
+            input
+                .events
+                .push(Event::PointerMoved(get_pos(lparam) / zoom_factor));
             InputResult::MouseMove
         }
         WM_LBUTTONDOWN | WM_LBUTTONDBLCLK => {
@@ -109,13 +117,15 @@ pub fn process(input: &mut RawInput, zoom_factor: f32, umsg: u32, wparam: usize,
             let delta = (wparam >> 16) as i16 as f32 * 10. / WHEEL_DELTA as f32;
 
             if wparam & MK_CONTROL.0 as usize != 0 {
-                input.events.push(Event::Zoom(if delta > 0. { 1.5 } else { 0.5 }));
+                input
+                    .events
+                    .push(Event::Zoom(if delta > 0. { 1.5 } else { 0.5 }));
                 InputResult::Zoom
             } else {
                 input.events.push(Event::MouseWheel {
                     unit: MouseWheelUnit::Line,
                     delta: Vec2::new(0., delta),
-                    modifiers: Modifiers::default()
+                    modifiers: Modifiers::default(),
                 });
                 InputResult::Scroll
             }
@@ -124,13 +134,15 @@ pub fn process(input: &mut RawInput, zoom_factor: f32, umsg: u32, wparam: usize,
             let delta = (wparam >> 16) as i16 as f32 * 10. / WHEEL_DELTA as f32;
 
             if wparam & MK_CONTROL.0 as usize != 0 {
-                input.events.push(Event::Zoom(if delta > 0. { 1.5 } else { 0.5 }));
+                input
+                    .events
+                    .push(Event::Zoom(if delta > 0. { 1.5 } else { 0.5 }));
                 InputResult::Zoom
             } else {
                 input.events.push(Event::MouseWheel {
                     unit: MouseWheelUnit::Line,
                     delta: Vec2::new(delta, 0.),
-                    modifiers: Modifiers::default()
+                    modifiers: Modifiers::default(),
                 });
                 InputResult::Scroll
             }
@@ -180,11 +192,11 @@ pub fn process(input: &mut RawInput, zoom_factor: f32, umsg: u32, wparam: usize,
 
 pub fn is_handled_msg(umsg: u32) -> bool {
     match umsg {
-        WM_CHAR | WM_KEYDOWN | WM_KEYUP |
-        WM_LBUTTONDBLCLK | WM_LBUTTONDOWN | WM_LBUTTONUP | WM_MBUTTONDBLCLK | WM_MBUTTONDOWN |
-        WM_MBUTTONUP | WM_MOUSEHWHEEL | WM_MOUSEMOVE | WM_MOUSEWHEEL | WM_RBUTTONDBLCLK |
-        WM_RBUTTONDOWN | WM_RBUTTONUP | WM_SYSKEYDOWN | WM_SYSKEYUP => true,
-        _ => false
+        WM_CHAR | WM_KEYDOWN | WM_KEYUP | WM_LBUTTONDBLCLK | WM_LBUTTONDOWN | WM_LBUTTONUP
+        | WM_MBUTTONDBLCLK | WM_MBUTTONDOWN | WM_MBUTTONUP | WM_MOUSEHWHEEL | WM_MOUSEMOVE
+        | WM_MOUSEWHEEL | WM_RBUTTONDBLCLK | WM_RBUTTONDOWN | WM_RBUTTONUP | WM_SYSKEYDOWN
+        | WM_SYSKEYUP => true,
+        _ => false,
     }
 }
 

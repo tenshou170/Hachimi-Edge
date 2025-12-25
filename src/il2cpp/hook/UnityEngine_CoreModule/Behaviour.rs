@@ -9,6 +9,7 @@ impl_addr_wrapper_fn!(set_enabled, SET_ENABLED_ADDR, (), this: *mut Il2CppObject
 pub fn init(_UnityEngine_CoreModule: *const Il2CppImage) {
     unsafe {
         GET_ENABLED_ADDR = il2cpp_resolve_icall(c"UnityEngine.Behaviour::get_enabled()".as_ptr());
-        SET_ENABLED_ADDR = il2cpp_resolve_icall(c"UnityEngine.Behaviour::set_enabled(System.Boolean)".as_ptr());
+        SET_ENABLED_ADDR =
+            il2cpp_resolve_icall(c"UnityEngine.Behaviour::set_enabled(System.Boolean)".as_ptr());
     }
 }

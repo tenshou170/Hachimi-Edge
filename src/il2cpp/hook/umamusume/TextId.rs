@@ -2,7 +2,10 @@ use std::ptr::null_mut;
 
 use crate::il2cpp::{
     api::{il2cpp_class_get_type, il2cpp_type_get_object},
-    ext::StringExt, hook::mscorlib::Enum, symbols::IEnumerable, types::*
+    ext::StringExt,
+    hook::mscorlib::Enum,
+    symbols::IEnumerable,
+    types::*,
 };
 
 static mut TEXTID_TYPE_OBJECT: *mut Il2CppObject = null_mut();

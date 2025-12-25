@@ -1,4 +1,6 @@
-use crate::il2cpp::{hook::UnityEngine_TextRenderingModule::TextAnchor, symbols::get_method_addr, types::*};
+use crate::il2cpp::{
+    hook::UnityEngine_TextRenderingModule::TextAnchor, symbols::get_method_addr, types::*,
+};
 
 static mut GET_LINESPACING_ADDR: usize = 0;
 impl_addr_wrapper_fn!(get_lineSpacing, GET_LINESPACING_ADDR, f32, this: *mut Il2CppObject);
@@ -32,7 +34,7 @@ impl_addr_wrapper_fn!(set_alignment, SET_ALIGNMENT_ADDR, (), this: *mut Il2CppOb
 
 pub fn init(UnityEngine_UI: *const Il2CppImage) {
     get_class_or_return!(UnityEngine_UI, "UnityEngine.UI", Text);
-    
+
     unsafe {
         GET_LINESPACING_ADDR = get_method_addr(Text, c"get_lineSpacing", 0);
         SET_LINESPACING_ADDR = get_method_addr(Text, c"set_lineSpacing", 1);

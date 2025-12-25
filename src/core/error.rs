@@ -12,30 +12,34 @@ pub enum Error {
     IoError(std::io::Error),
     JsonParseError(serde_json::Error),
     GuiRendererInitError(String),
-    HttpError(ureq::Error),
+    HttpError(Box<ureq::Error>),
     PluralParsing,
     OutOfDiskSpace,
     FileHashMismatch(String),
     ZipError(zip::result::ZipError),
     DiscordRpcError(String),
-    RuntimeError(String)
+    RuntimeError(String),
 }
 
 impl fmt::Display for Error {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Error::SymbolNotFound(module_name, symbol_name) => {
-                write!(f, "Symbol not found: {} (module {})", symbol_name, module_name)
+                write!(
+                    f,
+                    "Symbol not found: {} (module {})",
+                    symbol_name, module_name
+                )
             }
             Error::HookingError(e) => {
                 write!(f, "Hooking failed: {}", e)
             }
             Error::AssemblyNotFound(name) => {
                 write!(f, "Assembly not found: {}", name)
-            },
+            }
             Error::ClassNotFound(namespace, class_name) => {
                 write!(f, "Class not found: {}::{}", namespace, class_name)
-            },
+            }
             Error::MethodNotFound(name) => {
                 write!(f, "Method not found: {}", name)
             }
@@ -62,10 +66,10 @@ impl fmt::Display for Error {
             }
             Error::ZipError(error) => {
                 write!(f, "Zip error: {}", error)
-            },
+            }
             Error::DiscordRpcError(msg) => {
                 write!(f, "Discord RPC Error: {}", msg)
-            },
+            }
             Error::RuntimeError(msg) => {
                 write!(f, "{}", msg)
             }
@@ -87,7 +91,7 @@ impl From<serde_json::Error> for Error {
 
 impl From<ureq::Error> for Error {
     fn from(e: ureq::Error) -> Self {
-        Error::HttpError(e)
+        Error::HttpError(Box::new(e))
     }
 }
 

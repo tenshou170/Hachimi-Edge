@@ -1,6 +1,10 @@
 use std::ptr::null_mut;
 
-use crate::il2cpp::{api::{il2cpp_object_new, il2cpp_runtime_object_init}, symbols::get_method_addr, types::*};
+use crate::il2cpp::{
+    api::{il2cpp_object_new, il2cpp_runtime_object_init},
+    symbols::get_method_addr,
+    types::*,
+};
 
 static mut CLASS: *mut Il2CppClass = null_mut();
 pub fn class() -> *mut Il2CppClass {

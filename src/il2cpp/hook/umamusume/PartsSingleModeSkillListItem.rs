@@ -1,6 +1,11 @@
 use crate::{
-    core::{Hachimi, game::Region, utils::mul_int},
-    il2cpp::{hook::{UnityEngine_UI::Text}, sql::{self, TextDataQuery}, symbols::{get_field_from_name, get_field_object_value, get_method_addr}, types::*}
+    core::{game::Region, utils::mul_int, Hachimi},
+    il2cpp::{
+        hook::UnityEngine_UI::Text,
+        sql::{self, TextDataQuery},
+        symbols::{get_field_from_name, get_field_object_value, get_method_addr},
+        types::*,
+    },
 };
 
 // SkillListItem
@@ -19,8 +24,16 @@ impl_addr_wrapper_fn!(get_IsDrawDesc, get_IsDrawDesc_addr, bool, this: *mut Il2C
 static mut get_IsDrawNeedSkillPoint_addr: usize = 0;
 impl_addr_wrapper_fn!(get_IsDrawNeedSkillPoint, get_IsDrawNeedSkillPoint_addr, bool, this: *mut Il2CppObject);
 
-fn UpdateItemCommon(this: *mut Il2CppObject, skill_info: *mut Il2CppObject, orig_fn_cb: impl FnOnce()) {
-    let skill_cfg = &Hachimi::instance().localized_data.load().config.skill_formatting;
+fn UpdateItemCommon(
+    this: *mut Il2CppObject,
+    skill_info: *mut Il2CppObject,
+    orig_fn_cb: impl FnOnce(),
+) {
+    let skill_cfg = &Hachimi::instance()
+        .localized_data
+        .load()
+        .config
+        .skill_formatting;
     let mut txt_cfg = sql::SkillTextFormatting::default();
 
     let name = get__nameText(this);
@@ -47,12 +60,12 @@ fn UpdateItemCommon(this: *mut Il2CppObject, skill_info: *mut Il2CppObject, orig
         txt_cfg.name = Some(sql::TextFormatting {
             line_len: name_len,
             line_count: name_lines,
-            font_size: Text::get_fontSize(name)
+            font_size: Text::get_fontSize(name),
         });
     }
 
     if get_IsDrawDesc(skill_info) && !desc.is_null() {
-        let mut desc_len = skill_cfg.desc_length;
+        let desc_len = skill_cfg.desc_length;
         // todo: When conditions button!?
         // if get_IsDisplayUpgradeSkill(skill_info) {
         //     desc_len = mul_int(desc_len, skill_cfg.desc_btn_mult);
@@ -61,7 +74,7 @@ fn UpdateItemCommon(this: *mut Il2CppObject, skill_info: *mut Il2CppObject, orig
         txt_cfg.desc = Some(sql::TextFormatting {
             line_len: desc_len,
             line_count: 4,
-            font_size: Text::get_fontSize(desc)
+            font_size: Text::get_fontSize(desc),
         });
     }
 
@@ -80,15 +93,38 @@ fn UpdateItemCommon(this: *mut Il2CppObject, skill_info: *mut Il2CppObject, orig
     }
 }
 
-type UpdateItemJpFn = extern "C" fn(this: *mut Il2CppObject, skill_info: *mut Il2CppObject, is_plate_effect_enable: bool, resource_hash: i32);
-extern "C" fn UpdateItemJp(this: *mut Il2CppObject, skill_info: *mut Il2CppObject, is_plate_effect_enable: bool, resource_hash: i32) {
+type UpdateItemJpFn = extern "C" fn(
+    this: *mut Il2CppObject,
+    skill_info: *mut Il2CppObject,
+    is_plate_effect_enable: bool,
+    resource_hash: i32,
+);
+extern "C" fn UpdateItemJp(
+    this: *mut Il2CppObject,
+    skill_info: *mut Il2CppObject,
+    is_plate_effect_enable: bool,
+    resource_hash: i32,
+) {
     UpdateItemCommon(this, skill_info, || {
-        get_orig_fn!(UpdateItemJp, UpdateItemJpFn)(this, skill_info, is_plate_effect_enable, resource_hash);
+        get_orig_fn!(UpdateItemJp, UpdateItemJpFn)(
+            this,
+            skill_info,
+            is_plate_effect_enable,
+            resource_hash,
+        );
     });
 }
 
-type UpdateItemOtherFn = extern "C" fn(this: *mut Il2CppObject, skill_info: *mut Il2CppObject, is_plate_effect_enable: bool);
-extern "C" fn UpdateItemOther(this: *mut Il2CppObject, skill_info: *mut Il2CppObject, is_plate_effect_enable: bool) {
+type UpdateItemOtherFn = extern "C" fn(
+    this: *mut Il2CppObject,
+    skill_info: *mut Il2CppObject,
+    is_plate_effect_enable: bool,
+);
+extern "C" fn UpdateItemOther(
+    this: *mut Il2CppObject,
+    skill_info: *mut Il2CppObject,
+    is_plate_effect_enable: bool,
+) {
     UpdateItemCommon(this, skill_info, || {
         get_orig_fn!(UpdateItemOther, UpdateItemOtherFn)(this, skill_info, is_plate_effect_enable);
     });
@@ -101,8 +137,7 @@ pub fn init(umamusume: *const Il2CppImage) {
     if Hachimi::instance().game.region == Region::Japan {
         let UpdateItem_addr = get_method_addr(PartsSingleModeSkillListItem, c"UpdateItem", 3);
         new_hook!(UpdateItem_addr, UpdateItemJp);
-    }
-    else {
+    } else {
         let UpdateItem_addr = get_method_addr(PartsSingleModeSkillListItem, c"UpdateItem", 2);
         new_hook!(UpdateItem_addr, UpdateItemOther);
     }

@@ -1,6 +1,13 @@
 use std::ptr::null_mut;
 
-use crate::{core::Hachimi, il2cpp::{symbols::{get_method_addr, SingletonLike}, ext::StringExt, types::*}};
+use crate::{
+    core::Hachimi,
+    il2cpp::{
+        ext::StringExt,
+        symbols::{get_method_addr, SingletonLike},
+        types::*,
+    },
+};
 
 use super::{DialogCommon, TextId, WebViewDefine};
 
@@ -31,13 +38,17 @@ pub fn quick_open(dialog_title: &str, url: &str) {
         null_mut(),
         null_mut(),
         TextId::from_name("Common0007"),
-        9 // BIG_ONE_BUTTON
+        9, // BIG_ONE_BUTTON
     );
 
     let web_view_manager = instance();
-    Open(web_view_manager,
+    Open(
+        web_view_manager,
         url.to_il2cpp_string(),
-        dialog_data, null_mut(), null_mut(), false
+        dialog_data,
+        null_mut(),
+        null_mut(),
+        false,
     )
 }
 
@@ -51,7 +62,6 @@ extern "C" fn GetUrl(this: *mut Il2CppObject, url_type: i32) -> *mut Il2CppStrin
 
     get_orig_fn!(GetUrl, GetUrlFn)(this, url_type)
 }
-
 
 pub fn init(umamusume: *const Il2CppImage) {
     get_class_or_return!(umamusume, Gallop, WebViewManager);

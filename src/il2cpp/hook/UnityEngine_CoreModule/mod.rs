@@ -1,16 +1,16 @@
-pub mod Texture2D;
-mod Resources;
-pub mod Sprite;
-pub mod Object;
 pub mod Application;
-pub mod Material;
 mod AsyncOperation;
-pub mod GameObject;
-pub mod Texture;
-pub mod RenderTexture;
-pub mod Graphics;
 pub mod Behaviour;
 pub mod Component;
+pub mod GameObject;
+pub mod Graphics;
+pub mod Material;
+pub mod Object;
+pub mod RenderTexture;
+mod Resources;
+pub mod Sprite;
+pub mod Texture;
+pub mod Texture2D;
 
 #[cfg(target_os = "windows")]
 pub mod QualitySettings;

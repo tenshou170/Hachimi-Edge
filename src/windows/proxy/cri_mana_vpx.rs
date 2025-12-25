@@ -20,8 +20,10 @@ pub fn init() {
         let dll_path_cstr = U16CString::from_str(dll_path.to_str().unwrap()).unwrap();
         let handle = LoadLibraryW(PCWSTR(dll_path_cstr.as_ptr())).expect("cri_mana_vpx.dll");
 
-        criVvp9_GetAlphaInterface_orig = utils::get_proc_address(handle, c"criVvp9_GetAlphaInterface");
+        criVvp9_GetAlphaInterface_orig =
+            utils::get_proc_address(handle, c"criVvp9_GetAlphaInterface");
         criVvp9_GetInterface_orig = utils::get_proc_address(handle, c"criVvp9_GetInterface");
-        criVvp9_SetUserAllocator_orig = utils::get_proc_address(handle, c"criVvp9_SetUserAllocator");
+        criVvp9_SetUserAllocator_orig =
+            utils::get_proc_address(handle, c"criVvp9_SetUserAllocator");
     }
 }

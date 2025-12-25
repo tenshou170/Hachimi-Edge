@@ -1,13 +1,31 @@
-use std::{fs, path::{Path, PathBuf}, process, sync::{atomic::{self, AtomicBool, AtomicI32}, Arc, Mutex}};
 use arc_swap::ArcSwap;
 use fnv::{FnvHashMap, FnvHashSet};
 use once_cell::sync::OnceCell;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
+use std::{
+    fs,
+    path::{Path, PathBuf},
+    process,
+    sync::{
+        atomic::{self, AtomicBool, AtomicI32},
+        Arc, Mutex,
+    },
+};
 use textwrap::wrap_algorithms::Penalties;
 
-use crate::{core::plugin_api::Plugin, gui_impl, hachimi_impl, il2cpp::{self, hook::umamusume::{CySpringController::SpringUpdateMode, GameSystem}}};
+use crate::{
+    core::plugin_api::Plugin,
+    gui_impl, hachimi_impl,
+    il2cpp::{
+        self,
+        hook::umamusume::{CySpringController::SpringUpdateMode, GameSystem},
+    },
+};
 
-use super::{game::{Game, Region}, ipc, plurals, template, template_filters, tl_repo, utils, Error, Interceptor};
+use super::{
+    game::{Game, Region},
+    ipc, plurals, template, template_filters, tl_repo, utils, Error, Interceptor,
+};
 
 pub struct Hachimi {
     // Hooking stuff
@@ -37,7 +55,7 @@ pub struct Hachimi {
     pub discord_rpc: AtomicBool,
 
     #[cfg(target_os = "windows")]
-    pub updater: Arc<crate::windows::updater::Updater>
+    pub updater: Arc<crate::windows::updater::Updater>,
 }
 
 static INSTANCE: OnceCell<Arc<Hachimi>> = OnceCell::new();
@@ -78,10 +96,13 @@ impl Hachimi {
     }
 
     pub fn instance() -> Arc<Hachimi> {
-        INSTANCE.get().unwrap_or_else(|| {
-            error!("FATAL: Attempted to get Hachimi instance before initialization");
-            process::exit(1);
-        }).clone()
+        INSTANCE
+            .get()
+            .unwrap_or_else(|| {
+                error!("FATAL: Attempted to get Hachimi instance before initialization");
+                process::exit(1);
+            })
+            .clone()
     }
 
     pub fn is_initialized() -> bool {
@@ -120,17 +141,16 @@ impl Hachimi {
             #[cfg(target_os = "windows")]
             updater: Arc::default(),
 
-            config: ArcSwap::new(Arc::new(config))
+            config: ArcSwap::new(Arc::new(config)),
         })
     }
 
-    fn load_config(data_dir: &Path, region: &Region) -> Result<Config, Error> {
+    fn load_config(data_dir: &Path, _region: &Region) -> Result<Config, Error> {
         let config_path = data_dir.join("config.json");
         if fs::metadata(&config_path).is_ok() {
             let json = fs::read_to_string(&config_path)?;
             Ok(serde_json::from_str(&json)?)
-        }
-        else {
+        } else {
             Ok(Config::default())
         }
     }
@@ -181,18 +201,18 @@ impl Hachimi {
 
     pub fn on_dlopen(&self, filename: &str, handle: usize) -> bool {
         // Prevent double initialization
-        if self.hooking_finished.load(atomic::Ordering::Relaxed) { return false; }
+        if self.hooking_finished.load(atomic::Ordering::Relaxed) {
+            return false;
+        }
 
         if hachimi_impl::is_il2cpp_lib(filename) {
             info!("Got il2cpp handle");
             il2cpp::symbols::set_handle(handle);
             false
-        }
-        else if hachimi_impl::is_criware_lib(filename) {
+        } else if hachimi_impl::is_criware_lib(filename) {
             self.on_hooking_finished();
             true
-        }
-        else {
+        } else {
             false
         }
     }
@@ -241,7 +261,10 @@ impl Hachimi {
             #[cfg(target_os = "windows")]
             self.updater.clone().check_for_updates(|new_update| {
                 if !new_update {
-                    Hachimi::instance().tl_updater.clone().check_for_updates(false);
+                    Hachimi::instance()
+                        .tl_updater
+                        .clone()
+                        .check_for_updates(false);
                 }
             });
         }
@@ -250,7 +273,8 @@ impl Hachimi {
 
 fn default_serde_instance<'a, T: Deserialize<'a>>() -> Option<T> {
     let empty_data = std::iter::empty::<((), ())>();
-    let empty_deserializer = serde::de::value::MapDeserializer::<_, serde::de::value::Error>::new(empty_data);
+    let empty_deserializer =
+        serde::de::value::MapDeserializer::<_, serde::de::value::Error>::new(empty_data);
     T::deserialize(empty_deserializer).ok()
 }
 
@@ -323,22 +347,36 @@ pub struct Config {
     #[cfg(target_os = "windows")]
     #[serde(flatten)]
     pub windows: hachimi_impl::Config,
-
-    #[cfg(target_os = "android")]
-    #[serde(flatten)]
-    pub android: hachimi_impl::Config
 }
 
 impl Config {
-    fn default_open_browser_url() -> String { "https://www.google.com/".to_owned() }
-    fn default_virtual_res_mult() -> f32 { 1.0 }
-    fn default_ui_scale() -> f32 { 1.0 }
-    fn default_render_scale() -> f32 { 1.0 }
-    fn default_gui_scale() -> f32 { 1.0 }
-    fn default_story_choice_auto_select_delay() -> f32 { 1.2 }
-    fn default_story_tcps_multiplier() -> f32 { 3.0 }
-    fn default_meta_index_url() -> String { "https://gitlab.com/umatl/hachimi-meta/-/raw/main/meta.json".to_owned() }
-    fn default_ui_animation_scale() -> f32 { 1.0 }
+    fn default_open_browser_url() -> String {
+        "https://www.google.com/".to_owned()
+    }
+    fn default_virtual_res_mult() -> f32 {
+        1.0
+    }
+    fn default_ui_scale() -> f32 {
+        1.0
+    }
+    fn default_render_scale() -> f32 {
+        1.0
+    }
+    fn default_gui_scale() -> f32 {
+        1.0
+    }
+    fn default_story_choice_auto_select_delay() -> f32 {
+        1.2
+    }
+    fn default_story_tcps_multiplier() -> f32 {
+        3.0
+    }
+    fn default_meta_index_url() -> String {
+        "https://gitlab.com/umatl/hachimi-meta/-/raw/main/meta.json".to_owned()
+    }
+    fn default_ui_animation_scale() -> f32 {
+        1.0
+    }
 }
 
 impl Default for Config {
@@ -349,20 +387,12 @@ impl Default for Config {
 
 #[derive(Deserialize, Default, Clone)]
 pub struct OsOption<T> {
-    #[cfg(target_os = "android")]
-    android: Option<T>,
-
-    #[cfg(target_os = "windows")]
-    windows: Option<T>
+    windows: Option<T>,
 }
 
 impl<T> OsOption<T> {
     pub fn as_ref(&self) -> Option<&T> {
-        #[cfg(target_os = "android")]
-        return self.android.as_ref();
-
-        #[cfg(target_os = "windows")]
-        return self.windows.as_ref();
+        self.windows.as_ref()
     }
 }
 
@@ -370,7 +400,8 @@ impl<T> OsOption<T> {
 #[allow(non_camel_case_types)]
 pub enum Language {
     #[serde(rename = "en")]
-    #[default] English,
+    #[default]
+    English,
 
     #[serde(rename = "zh-tw")]
     TChinese,
@@ -382,7 +413,7 @@ pub enum Language {
     Vietnamese,
 
     #[serde(rename = "es")]
-    Spanish
+    Spanish,
 }
 
 impl Language {
@@ -391,7 +422,7 @@ impl Language {
         Self::TChinese.choice(),
         Self::SChinese.choice(),
         Self::Vietnamese.choice(),
-        Self::Spanish.choice()
+        Self::Spanish.choice(),
     ];
 
     pub fn set_locale(&self) {
@@ -404,7 +435,7 @@ impl Language {
             Language::TChinese => "zh-tw",
             Language::SChinese => "zh-cn",
             Language::Vietnamese => "vi",
-            Language::Spanish => "es"
+            Language::Spanish => "es",
         }
     }
 
@@ -414,7 +445,7 @@ impl Language {
             Language::TChinese => "繁體中文",
             Language::SChinese => "简体中文",
             Language::Vietnamese => "Tiếng Việt",
-            Language::Spanish => "Español (ES)"
+            Language::Spanish => "Español (ES)",
         }
     }
 
@@ -432,14 +463,14 @@ pub struct LocalizedData {
     pub hashed_dict: FnvHashMap<u64, String>,
     pub text_data_dict: FnvHashMap<i32, FnvHashMap<i32, String>>, // {"category": {"index": "text"}}
     pub character_system_text_dict: FnvHashMap<i32, FnvHashMap<i32, String>>, // {"character_id": {"voice_id": "text"}}
-    pub race_jikkyo_comment_dict: FnvHashMap<i32, String>, // {"id": "text"}
-    pub race_jikkyo_message_dict: FnvHashMap<i32, String>, // {"id": "text"}
+    pub race_jikkyo_comment_dict: FnvHashMap<i32, String>,                    // {"id": "text"}
+    pub race_jikkyo_message_dict: FnvHashMap<i32, String>,                    // {"id": "text"}
     assets_path: Option<PathBuf>,
 
     pub plural_form: plurals::Resolver,
     pub ordinal_form: plurals::Resolver,
 
-    pub wrapper_penalties: Penalties
+    pub wrapper_penalties: Penalties,
 }
 
 impl LocalizedData {
@@ -454,7 +485,12 @@ impl LocalizedData {
 
             // Create .nomedia
             #[cfg(target_os = "android")]
-            { _ = fs::OpenOptions::new().create_new(true).write(true).open(ld_path.join(".nomedia")); }
+            {
+                _ = fs::OpenOptions::new()
+                    .create_new(true)
+                    .write(true)
+                    .open(ld_path.join(".nomedia"));
+            }
 
             let ld_config_path = ld_path.join("config.json");
             path = Some(ld_path);
@@ -462,13 +498,11 @@ impl LocalizedData {
             if fs::metadata(&ld_config_path).is_ok() {
                 let json = fs::read_to_string(&ld_config_path)?;
                 serde_json::from_str(&json)?
-            }
-            else {
+            } else {
                 warn!("Localized data config not found");
                 LocalizedDataConfig::default()
             }
-        }
-        else {
+        } else {
             path = None;
             LocalizedDataConfig::default()
         };
@@ -479,16 +513,30 @@ impl LocalizedData {
         let wrapper_penalties = Self::parse_wrap_penalties_or_default(&config.wrapper_penalties);
 
         Ok(LocalizedData {
-            localize_dict: Self::load_dict_static(&path, config.localize_dict.as_ref()).unwrap_or_default(),
-            hashed_dict: Self::load_dict_static(&path, config.hashed_dict.as_ref()).unwrap_or_default(),
-            text_data_dict: Self::load_dict_static(&path, config.text_data_dict.as_ref()).unwrap_or_default(),
-            character_system_text_dict: Self::load_dict_static(&path, config.character_system_text_dict.as_ref()).unwrap_or_default(),
-            race_jikkyo_comment_dict: Self::load_dict_static(&path, config.race_jikkyo_comment_dict.as_ref()).unwrap_or_default(),
-            race_jikkyo_message_dict: Self::load_dict_static(&path, config.race_jikkyo_message_dict.as_ref()).unwrap_or_default(),
-            assets_path: path.as_ref()
-                .map(|p| config.assets_dir.as_ref()
-                    .map(|dir| p.join(dir))
-                )
+            localize_dict: Self::load_dict_static(&path, config.localize_dict.as_ref())
+                .unwrap_or_default(),
+            hashed_dict: Self::load_dict_static(&path, config.hashed_dict.as_ref())
+                .unwrap_or_default(),
+            text_data_dict: Self::load_dict_static(&path, config.text_data_dict.as_ref())
+                .unwrap_or_default(),
+            character_system_text_dict: Self::load_dict_static(
+                &path,
+                config.character_system_text_dict.as_ref(),
+            )
+            .unwrap_or_default(),
+            race_jikkyo_comment_dict: Self::load_dict_static(
+                &path,
+                config.race_jikkyo_comment_dict.as_ref(),
+            )
+            .unwrap_or_default(),
+            race_jikkyo_message_dict: Self::load_dict_static(
+                &path,
+                config.race_jikkyo_message_dict.as_ref(),
+            )
+            .unwrap_or_default(),
+            assets_path: path
+                .as_ref()
+                .map(|p| config.assets_dir.as_ref().map(|dir| p.join(dir)))
                 .unwrap_or_default(),
 
             plural_form,
@@ -497,17 +545,19 @@ impl LocalizedData {
             wrapper_penalties,
 
             config,
-            path
+            path,
         })
     }
 
-    fn load_dict_static_ex<T: DeserializeOwned, P: AsRef<Path>>(ld_path_opt: &Option<PathBuf>, rel_path_opt: Option<P>, silent_fs_error: bool) -> Option<T> {
+    fn load_dict_static_ex<T: DeserializeOwned, P: AsRef<Path>>(
+        ld_path_opt: &Option<PathBuf>,
+        rel_path_opt: Option<P>,
+        silent_fs_error: bool,
+    ) -> Option<T> {
         let Some(ld_path) = ld_path_opt else {
             return None;
         };
-        let Some(rel_path) = rel_path_opt else {
-            return None;
-        };
+        let rel_path = rel_path_opt?;
 
         let path = ld_path.join(rel_path);
         let json = match fs::read_to_string(&path) {
@@ -531,37 +581,45 @@ impl LocalizedData {
         Some(dict)
     }
 
-    fn load_dict_static<T: DeserializeOwned, P: AsRef<Path>>(ld_path_opt: &Option<PathBuf>, rel_path_opt: Option<P>) -> Option<T> {
+    fn load_dict_static<T: DeserializeOwned, P: AsRef<Path>>(
+        ld_path_opt: &Option<PathBuf>,
+        rel_path_opt: Option<P>,
+    ) -> Option<T> {
         Self::load_dict_static_ex(ld_path_opt, rel_path_opt, false)
     }
 
-    pub fn load_dict<T: DeserializeOwned, P: AsRef<Path>>(&self, rel_path_opt: Option<P>) -> Option<T> {
+    pub fn load_dict<T: DeserializeOwned, P: AsRef<Path>>(
+        &self,
+        rel_path_opt: Option<P>,
+    ) -> Option<T> {
         Self::load_dict_static(&self.path, rel_path_opt)
     }
 
-    pub fn load_assets_dict<T: DeserializeOwned, P: AsRef<Path>>(&self, rel_path_opt: Option<P>) -> Option<T> {
+    pub fn load_assets_dict<T: DeserializeOwned, P: AsRef<Path>>(
+        &self,
+        rel_path_opt: Option<P>,
+    ) -> Option<T> {
         Self::load_dict_static_ex(&self.assets_path, rel_path_opt, true)
     }
 
     fn parse_plural_form_or_default(opt: &Option<String>) -> Result<plurals::Resolver, Error> {
         if let Some(plural_form) = opt {
             Ok(plurals::Resolver::Expr(plurals::Ast::parse(plural_form)?))
-        }
-        else {
+        } else {
             Ok(plurals::Resolver::Function(|_| 0))
         }
     }
 
     fn parse_wrap_penalties_or_default(opt: &Option<PenaltiesConfig>) -> Penalties {
         let Some(cfg) = opt else {
-            return Penalties::new()
+            return Penalties::new();
         };
         Penalties {
             nline_penalty: cfg.nline_penalty,
             overflow_penalty: cfg.overflow_penalty,
             short_last_line_fraction: cfg.short_last_line_fraction,
             short_last_line_penalty: cfg.short_last_line_penalty,
-            hyphen_penalty: cfg.hyphen_penalty
+            hyphen_penalty: cfg.hyphen_penalty,
         }
     }
 
@@ -576,13 +634,18 @@ impl LocalizedData {
     pub fn load_asset_metadata<P: AsRef<Path>>(&self, rel_path: P) -> AssetMetadata {
         let mut path = rel_path.as_ref().to_owned();
         path.set_extension("json");
-        self.load_assets_dict(Some(path)).unwrap_or_else(|| AssetInfo::<()>::default()).metadata()
+        self.load_assets_dict::<AssetInfo<()>, _>(Some(path))
+            .unwrap_or_default()
+            .metadata()
     }
 
-    pub fn load_asset_info<P: AsRef<Path>, T: DeserializeOwned>(&self, rel_path: P) -> AssetInfo<T> {
+    pub fn load_asset_info<P: AsRef<Path>, T: DeserializeOwned>(
+        &self,
+        rel_path: P,
+    ) -> AssetInfo<T> {
         let mut path = rel_path.as_ref().to_owned();
         path.set_extension("json");
-        self.load_assets_dict(Some(path)).unwrap_or_else(|| AssetInfo::default())
+        self.load_assets_dict(Some(path)).unwrap_or_default()
     }
 }
 
@@ -637,14 +700,14 @@ pub struct LocalizedDataConfig {
 
     // RESERVED
     #[serde(default)]
-    pub _debug: i32
+    pub _debug: i32,
 }
 
 #[derive(Deserialize, Clone)]
 pub struct UITextConfig {
     pub text: Option<String>,
     pub font_size: Option<i32>,
-    pub line_spacing: Option<f32>
+    pub line_spacing: Option<f32>,
 }
 
 impl Default for LocalizedDataConfig {
@@ -663,7 +726,11 @@ pub struct AssetInfo<T> {
     #[serde(default)]
     windows: AssetMetadata,
 
-    pub data: Option<T>
+    #[cfg(not(any(target_os = "android", target_os = "windows")))]
+    #[serde(skip)]
+    _dummy: AssetMetadata,
+
+    pub data: Option<T>,
 }
 
 // Can't derive(Default), see rust-lang/rust#26925
@@ -676,7 +743,10 @@ impl<T> Default for AssetInfo<T> {
             #[cfg(target_os = "windows")]
             windows: Default::default(),
 
-            data: None
+            #[cfg(not(any(target_os = "android", target_os = "windows")))]
+            _dummy: Default::default(),
+
+            data: None,
         }
     }
 }
@@ -688,6 +758,9 @@ impl<T> AssetInfo<T> {
 
         #[cfg(target_os = "windows")]
         return self.windows;
+
+        #[cfg(not(any(target_os = "android", target_os = "windows")))]
+        AssetMetadata::default()
     }
 
     pub fn metadata_ref(&self) -> &AssetMetadata {
@@ -696,12 +769,15 @@ impl<T> AssetInfo<T> {
 
         #[cfg(target_os = "windows")]
         return &self.windows;
+
+        #[cfg(not(any(target_os = "android", target_os = "windows")))]
+        &self._dummy
     }
 }
 
 #[derive(Deserialize, Clone, Default)]
 pub struct AssetMetadata {
-    pub bundle_name: Option<String>
+    pub bundle_name: Option<String>,
 }
 
 #[derive(Deserialize, Clone)]
@@ -710,7 +786,7 @@ pub struct PenaltiesConfig {
     overflow_penalty: usize,
     short_last_line_fraction: usize,
     short_last_line_penalty: usize,
-    hyphen_penalty: usize
+    hyphen_penalty: usize,
 }
 
 #[derive(Deserialize, Clone)]
@@ -728,9 +804,15 @@ pub struct SkillFormatting {
     pub name_sp_mult: f32,
 }
 impl SkillFormatting {
-    fn default_length() -> i32 { 18 }
-    fn default_lines() -> i32 { 1 }
-    fn default_mult() -> f32 { 1.0 }
+    fn default_length() -> i32 {
+        18
+    }
+    fn default_lines() -> i32 {
+        1
+    }
+    fn default_mult() -> f32 {
+        1.0
+    }
 }
 
 impl Default for SkillFormatting {
@@ -740,6 +822,7 @@ impl Default for SkillFormatting {
             desc_length: 18,
             name_short_lines: 1,
             name_short_mult: 1.0,
-            name_sp_mult: 1.0 }
+            name_sp_mult: 1.0,
+        }
     }
 }

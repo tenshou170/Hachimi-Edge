@@ -3,8 +3,13 @@ use std::ptr::null_mut;
 use crate::{
     core::Hachimi,
     il2cpp::{
-        ext::{Il2CppStringExt, StringExt}, hook::UnityEngine_TextRenderingModule::TextGenerator::IgnoreTGFiltersContext, symbols::{get_field_from_name, get_field_object_value, get_method_addr, set_field_object_value}, types::*
-    }
+        ext::{Il2CppStringExt, StringExt},
+        hook::UnityEngine_TextRenderingModule::TextGenerator::IgnoreTGFiltersContext,
+        symbols::{
+            get_field_from_name, get_field_object_value, get_method_addr, set_field_object_value,
+        },
+        types::*,
+    },
 };
 
 static mut TEXT_FIELD: *mut FieldInfo = null_mut();
@@ -26,12 +31,17 @@ extern "C" fn _UpdateText(this: *mut Il2CppObject) {
     let text = unsafe { (*text_ptr).as_utf16str() };
 
     // doesn't run through TextGenerator, ignore its filters
-    if text.as_slice().contains(&36) { // 36 = dollar sign ($)
-        set__text(this, Hachimi::instance().template_parser
-            .eval_with_context(&text.to_string(), &mut IgnoreTGFiltersContext())
-            .to_il2cpp_string());
+    if text.as_slice().contains(&36) {
+        // 36 = dollar sign ($)
+        set__text(
+            this,
+            Hachimi::instance()
+                .template_parser
+                .eval_with_context(&text.to_string(), &mut IgnoreTGFiltersContext())
+                .to_il2cpp_string(),
+        );
     }
-    
+
     get_orig_fn!(_UpdateText, _UpdateTextFn)(this);
 }
 

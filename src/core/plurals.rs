@@ -26,8 +26,8 @@
     SOFTWARE.
 */
 
-use super::Error;
 use self::Resolver::*;
+use super::Error;
 
 #[derive(Clone, Debug)]
 pub enum Resolver {
@@ -107,7 +107,7 @@ pub enum Operator {
     Minus,
     Divide,
     Multiply,
-    Modulo
+    Modulo,
 }
 
 impl Ast {
@@ -351,7 +351,7 @@ impl Ast {
     }
 
     fn parse_int(src: &str) -> Result<Ast, Error> {
-        if let Ok(x) = u64::from_str_radix(src, 10) {
+        if let Ok(x) = src.parse::<u64>() {
             Ok(Ast::Integer(x))
         } else {
             Self::parse_n(src.trim())

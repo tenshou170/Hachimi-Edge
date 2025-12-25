@@ -1,3 +1,10 @@
+#![allow(
+    clippy::missing_safety_doc,
+    clippy::missing_transmute_annotations,
+    clippy::not_unsafe_ptr_arg_deref,
+    clippy::useless_transmute,
+    clippy::type_complexity
+)]
 use std::borrow::Cow;
 use std::collections::hash_map;
 use std::ffi::CStr;
@@ -9,14 +16,14 @@ use std::sync::Mutex;
 use fnv::FnvHashMap;
 use once_cell::sync::Lazy;
 
+use crate::core::Error;
 use crate::core::Hachimi;
 use crate::symbols_impl;
-use crate::core::Error;
 
 use super::api::*;
 use super::ext::Il2CppObjectExt;
-use super::types::*;
 use super::types::Il2CppClass;
+use super::types::*;
 use std::ptr::null_mut;
 
 static mut HANDLE: *mut c_void = null_mut();
@@ -38,36 +45,50 @@ pub fn get_assembly_image(assembly_name: &CStr) -> Result<*const Il2CppImage, Er
     let domain = unsafe { DOMAIN };
     let assembly = il2cpp_domain_assembly_open(domain, assembly_name.as_ptr());
     if assembly.is_null() {
-        Err(Error::AssemblyNotFound(assembly_name.to_str().unwrap().to_owned()))
-    }
-    else {
+        Err(Error::AssemblyNotFound(
+            assembly_name.to_str().unwrap().to_owned(),
+        ))
+    } else {
         Ok(il2cpp_assembly_get_image(assembly))
     }
 }
 
-pub fn get_class(image: *const Il2CppImage, namespace: &CStr, class_name: &CStr) -> Result<*mut Il2CppClass, Error> {
+pub fn get_class(
+    image: *const Il2CppImage,
+    namespace: &CStr,
+    class_name: &CStr,
+) -> Result<*mut Il2CppClass, Error> {
     let class = il2cpp_class_from_name(image, namespace.as_ptr(), class_name.as_ptr());
     if class.is_null() {
-        Err(Error::ClassNotFound(namespace.to_str().unwrap().to_owned(), class_name.to_str().unwrap().to_owned()))
-    }
-    else {
+        Err(Error::ClassNotFound(
+            namespace.to_str().unwrap().to_owned(),
+            class_name.to_str().unwrap().to_owned(),
+        ))
+    } else {
         Ok(class)
     }
 }
 
-pub fn get_method(class: *mut Il2CppClass, name: &CStr, args_count: i32) -> Result<*const MethodInfo, Error> {
+pub fn get_method(
+    class: *mut Il2CppClass,
+    name: &CStr,
+    args_count: i32,
+) -> Result<*const MethodInfo, Error> {
     let method = il2cpp_class_get_method_from_name(class, name.as_ptr(), args_count);
     if method.is_null() {
         Err(Error::MethodNotFound(name.to_str().unwrap().to_owned()))
-    }
-    else {
+    } else {
         Ok(method)
     }
 }
 
-pub fn get_method_overload(class: *mut Il2CppClass, name: &str, params: &[Il2CppTypeEnum]) -> Result<*const MethodInfo, Error> {
+pub fn get_method_overload(
+    class: *mut Il2CppClass,
+    name: &str,
+    params: &[Il2CppTypeEnum],
+) -> Result<*const MethodInfo, Error> {
     let mut iter: *mut c_void = null_mut();
-    
+
     loop {
         let method = il2cpp_class_get_methods(class, &mut iter);
         if method.is_null() {
@@ -99,7 +120,7 @@ pub fn get_method_overload(class: *mut Il2CppClass, name: &str, params: &[Il2Cpp
             return Ok(method);
         }
     }
-    
+
     Err(Error::MethodNotFound(name.to_owned()))
 }
 
@@ -107,29 +128,34 @@ pub fn get_method_addr(class: *mut Il2CppClass, name: &CStr, args_count: i32) ->
     let res = get_method(class, name, args_count);
     if let Ok(method) = res {
         unsafe { (*method).methodPointer }
-    }
-    else {
+    } else {
         warn!("get_method_addr: {} = NULL", name.to_str().unwrap());
         0
     }
 }
 
-pub fn get_method_overload_addr(class: *mut Il2CppClass, name: &str, params: &[Il2CppTypeEnum]) -> usize {
+pub fn get_method_overload_addr(
+    class: *mut Il2CppClass,
+    name: &str,
+    params: &[Il2CppTypeEnum],
+) -> usize {
     let res = get_method_overload(class, name, params);
     if let Ok(method) = res {
         unsafe { (*method).methodPointer }
-    }
-    else {
+    } else {
         warn!("get_method_overload_addr: {} = NULL", name);
         0
     }
 }
 
-pub static METHOD_CACHE: Lazy<
-    Mutex<FnvHashMap<usize, FnvHashMap<(Cow<'_, CStr>, i32), usize>>>
-> = Lazy::new(|| Mutex::default());
+pub static METHOD_CACHE: Lazy<Mutex<FnvHashMap<usize, FnvHashMap<(Cow<'_, CStr>, i32), usize>>>> =
+    Lazy::new(Mutex::default);
 
-pub fn get_method_cached(class: *mut Il2CppClass, name: &CStr, args_count: i32) -> Result<*const MethodInfo, Error> {
+pub fn get_method_cached(
+    class: *mut Il2CppClass,
+    name: &CStr,
+    args_count: i32,
+) -> Result<*const MethodInfo, Error> {
     let mut cache = METHOD_CACHE.lock().unwrap();
     let entries = match cache.entry(class as usize) {
         hash_map::Entry::Occupied(e) => {
@@ -137,19 +163,18 @@ pub fn get_method_cached(class: *mut Il2CppClass, name: &CStr, args_count: i32) 
                 if *addr == 0 {
                     // Only error that get_method returns
                     return Err(Error::MethodNotFound(name.to_str().unwrap().to_owned()));
-                }
-                else {
+                } else {
                     return Ok(*addr as *const MethodInfo);
                 }
             }
             e.into_mut()
-        },
-        hash_map::Entry::Vacant(e) => e.insert(FnvHashMap::default())
+        }
+        hash_map::Entry::Vacant(e) => e.insert(FnvHashMap::default()),
     };
     let res = get_method(class, name, args_count);
     let addr = match res {
         Ok(addr) => addr as usize,
-        Err(_) => 0
+        Err(_) => 0,
     };
     entries.insert((name.to_owned().into(), args_count), addr);
     res
@@ -159,8 +184,7 @@ pub fn get_method_addr_cached(class: *mut Il2CppClass, name: &CStr, args_count: 
     let res = get_method_cached(class, name, args_count);
     if let Ok(method) = res {
         unsafe { (*method).methodPointer }
-    }
-    else {
+    } else {
         warn!("get_method_addr_cached: {} = NULL", name.to_str().unwrap());
         0
     }
@@ -170,7 +194,9 @@ pub fn find_nested_class(class: *mut Il2CppClass, name: &CStr) -> Result<*mut Il
     let mut iter: *mut c_void = null_mut();
     loop {
         let nested_class = il2cpp_class_get_nested_types(class, &mut iter);
-        if nested_class.is_null() { break; }
+        if nested_class.is_null() {
+            break;
+        }
 
         let class_name = unsafe { CStr::from_ptr((*nested_class).name) };
         if class_name == name {
@@ -179,7 +205,10 @@ pub fn find_nested_class(class: *mut Il2CppClass, name: &CStr) -> Result<*mut Il
     }
 
     let class_name = unsafe { CStr::from_ptr((*class).name).to_str().unwrap() };
-    Err(Error::ClassNotFound(class_name.to_owned(), name.to_str().unwrap().to_owned()))
+    Err(Error::ClassNotFound(
+        class_name.to_owned(),
+        name.to_str().unwrap().to_owned(),
+    ))
 }
 
 pub fn get_field_value<T>(obj: *mut Il2CppObject, field: *mut FieldInfo) -> T {
@@ -210,7 +239,7 @@ pub fn get_field_from_name(class: *mut Il2CppClass, name: &CStr) -> *mut FieldIn
         warn!("get_field_from_name: {} = NULL", name.to_str().unwrap());
     }
 
-    return field;
+    field
 }
 
 pub fn get_static_field_value<T: Default>(field: *mut FieldInfo) -> T {
@@ -232,7 +261,7 @@ pub unsafe fn unbox<T: Copy>(obj: *mut Il2CppObject) -> T {
 #[repr(transparent)]
 pub struct IEnumerable<T = *mut Il2CppObject> {
     pub this: *mut Il2CppObject,
-    _phantom: PhantomData<T>
+    _phantom: PhantomData<T>,
 }
 
 impl<T> IEnumerable<T> {
@@ -246,10 +275,9 @@ impl<T> IEnumerable<T> {
         if get_enumerator_addr == 0 {
             return None;
         }
-        
-        let get_enumerator: extern "C" fn(*mut Il2CppObject) -> *mut Il2CppObject = unsafe {
-            std::mem::transmute(get_enumerator_addr)
-        };
+
+        let get_enumerator: extern "C" fn(*mut Il2CppObject) -> *mut Il2CppObject =
+            unsafe { std::mem::transmute(get_enumerator_addr) };
 
         Some(IEnumerator::from(get_enumerator(self.this)))
     }
@@ -259,7 +287,7 @@ impl<T> From<*mut Il2CppObject> for IEnumerable<T> {
     fn from(value: *mut Il2CppObject) -> Self {
         IEnumerable {
             this: value,
-            _phantom: PhantomData
+            _phantom: PhantomData,
         }
     }
 }
@@ -267,7 +295,7 @@ impl<T> From<*mut Il2CppObject> for IEnumerable<T> {
 #[repr(transparent)]
 pub struct IEnumerator<T = *mut Il2CppObject> {
     pub this: *mut Il2CppObject,
-    _phantom: PhantomData<T>
+    _phantom: PhantomData<T>,
 }
 
 pub type MoveNextFn = extern "C" fn(*mut Il2CppObject) -> bool;
@@ -281,7 +309,9 @@ impl<T> IEnumerator<T> {
         let class = unsafe { (*self.this).klass() };
         // Get addr manually to avoid nullptr warning
         let get_current_method = get_method_cached(class, c"get_Current", 0);
-        let get_current_addr = get_current_method.map(|m| unsafe { (*m).methodPointer }).unwrap_or(0);
+        let get_current_addr = get_current_method
+            .map(|m| unsafe { (*m).methodPointer })
+            .unwrap_or(0);
         let move_next_addr = get_method_addr_cached(class, c"MoveNext", 0);
 
         if move_next_addr == 0 {
@@ -291,7 +321,7 @@ impl<T> IEnumerator<T> {
         Some(IEnumeratorIterator {
             this: self.this,
             get_Current: unsafe { std::mem::transmute(get_current_addr) },
-            MoveNext: unsafe { std::mem::transmute(move_next_addr) }
+            MoveNext: unsafe { std::mem::transmute(move_next_addr) },
         })
     }
 
@@ -303,7 +333,9 @@ impl<T> IEnumerator<T> {
             return Err(Error::MethodNotFound("MoveNext".to_owned()));
         }
 
-        Hachimi::instance().interceptor.hook(move_next_addr, hook_fn as usize)
+        Hachimi::instance()
+            .interceptor
+            .hook(move_next_addr, hook_fn as usize)
     }
 }
 
@@ -311,7 +343,7 @@ impl<T> From<*mut Il2CppObject> for IEnumerator<T> {
     fn from(value: *mut Il2CppObject) -> Self {
         IEnumerator {
             this: value,
-            _phantom: PhantomData
+            _phantom: PhantomData,
         }
     }
 }
@@ -320,7 +352,7 @@ impl<T> From<*mut Il2CppObject> for IEnumerator<T> {
 pub struct IEnumeratorIterator<T> {
     this: *mut Il2CppObject,
     get_Current: Option<extern "C" fn(*mut Il2CppObject) -> T>,
-    MoveNext: MoveNextFn
+    MoveNext: MoveNextFn,
 }
 
 impl<T> Iterator for IEnumeratorIterator<T> {
@@ -328,14 +360,11 @@ impl<T> Iterator for IEnumeratorIterator<T> {
 
     fn next(&mut self) -> Option<Self::Item> {
         // TODO: properly handle enumerators that returns nothing
-        let Some(get_current) = self.get_Current else {
-            return None;
-        };
+        let get_current = self.get_Current?;
 
         if (self.MoveNext)(self.this) {
             Some(get_current(self.this))
-        }
-        else {
+        } else {
             None
         }
     }
@@ -346,7 +375,7 @@ pub struct IList<T = *mut Il2CppObject> {
     pub this: *mut Il2CppObject,
     get_Item: extern "C" fn(*mut Il2CppObject, i32) -> T,
     set_Item: extern "C" fn(*mut Il2CppObject, i32, T),
-    get_Count: extern "C" fn(*mut Il2CppObject) -> i32
+    get_Count: extern "C" fn(*mut Il2CppObject) -> i32,
 }
 
 impl<T> IList<T> {
@@ -362,13 +391,13 @@ impl<T> IList<T> {
 
         if get_item_addr == 0 || set_item_addr == 0 || get_count_addr == 0 {
             return None;
-        }       
+        }
 
         Some(IList {
             this,
             get_Item: unsafe { std::mem::transmute(get_item_addr) },
             set_Item: unsafe { std::mem::transmute(set_item_addr) },
-            get_Count: unsafe { std::mem::transmute(get_count_addr) }
+            get_Count: unsafe { std::mem::transmute(get_count_addr) },
         })
     }
 
@@ -376,8 +405,7 @@ impl<T> IList<T> {
     pub fn get(&self, i: i32) -> Option<T> {
         if i >= 0 && i < self.count() {
             Some((self.get_Item)(self.this, i))
-        }
-        else {
+        } else {
             None
         }
     }
@@ -387,8 +415,7 @@ impl<T> IList<T> {
         if i >= 0 && i < self.count() {
             (self.set_Item)(self.this, i, value);
             true
-        }
-        else {
+        } else {
             false
         }
     }
@@ -405,21 +432,21 @@ impl<T> IList<T> {
 impl<'a, T> IntoIterator for &'a IList<T> {
     type Item = T;
     type IntoIter = IListIter<'a, T>;
-    
+
     fn into_iter(self) -> Self::IntoIter {
         self.iter()
     }
 }
 
-impl<T> Into<Vec<T>> for IList<T> {
-    fn into(self) -> Vec<T> {
-        self.iter().collect()
+impl<T> From<IList<T>> for Vec<T> {
+    fn from(val: IList<T>) -> Self {
+        val.iter().collect()
     }
 }
 
 pub struct IListIter<'a, T> {
     list: &'a IList<T>,
-    i: i32
+    i: i32,
 }
 
 impl<'a, T> Iterator for IListIter<'a, T> {
@@ -437,7 +464,7 @@ pub struct IDictionary<K, V> {
     pub this: *mut Il2CppObject,
     get_Item: extern "C" fn(*mut Il2CppObject, K) -> V,
     set_Item: extern "C" fn(*mut Il2CppObject, K, V),
-    Contains: extern "C" fn(*mut Il2CppObject, K) -> bool
+    Contains: extern "C" fn(*mut Il2CppObject, K) -> bool,
 }
 
 impl<K, V> IDictionary<K, V> {
@@ -459,7 +486,7 @@ impl<K, V> IDictionary<K, V> {
             this,
             get_Item: unsafe { std::mem::transmute(get_item_addr) },
             set_Item: unsafe { std::mem::transmute(set_item_addr) },
-            Contains: unsafe { std::mem::transmute(contains_addr) }
+            Contains: unsafe { std::mem::transmute(contains_addr) },
         })
     }
 
@@ -493,13 +520,13 @@ impl Thread {
             return null_mut();
         }
 
-        let get_exec_ctx: extern "C" fn(*mut Il2CppObject) -> *mut Il2CppObject = unsafe {
-            std::mem::transmute(get_exec_ctx_addr)
-        };
+        let get_exec_ctx: extern "C" fn(*mut Il2CppObject) -> *mut Il2CppObject =
+            unsafe { std::mem::transmute(get_exec_ctx_addr) };
         let exec_ctx = get_exec_ctx(self.0 as *mut Il2CppObject);
         let exec_ctx_class = unsafe { (*exec_ctx).klass() };
 
-        let sync_ctx_field = il2cpp_class_get_field_from_name(exec_ctx_class, c"_syncContext".as_ptr());
+        let sync_ctx_field =
+            il2cpp_class_get_field_from_name(exec_ctx_class, c"_syncContext".as_ptr());
         if sync_ctx_field.is_null() {
             return null_mut();
         }
@@ -515,12 +542,15 @@ impl Thread {
         }
         let sync_ctx_class = unsafe { (*sync_ctx).klass() };
 
-        let sync_ctx_post: extern "C" fn(*mut Il2CppObject, *mut Il2CppDelegate, *mut Il2CppObject) = unsafe {
-            std::mem::transmute(get_method_addr_cached(sync_ctx_class, c"Post", 2))
-        };
+        let sync_ctx_post: extern "C" fn(
+            *mut Il2CppObject,
+            *mut Il2CppDelegate,
+            *mut Il2CppObject,
+        ) = unsafe { std::mem::transmute(get_method_addr_cached(sync_ctx_class, c"Post", 2)) };
 
         let mscorlib = get_assembly_image(c"mscorlib.dll").expect("mscorlib");
-        let delegate_class = get_class(mscorlib, c"System.Threading", c"SendOrPostCallback").expect("SendOrPostCallback");
+        let delegate_class = get_class(mscorlib, c"System.Threading", c"SendOrPostCallback")
+            .expect("SendOrPostCallback");
         let delegate = create_delegate(delegate_class, 1, callback).unwrap();
 
         sync_ctx_post(sync_ctx, delegate, null_mut());
@@ -533,7 +563,10 @@ impl Thread {
     }
 
     pub fn main_thread() -> Thread {
-        Self::attached_threads().get(0).expect("main thread must be present").clone()
+        Self::attached_threads()
+            .first()
+            .expect("main thread must be present")
+            .clone()
     }
 
     pub fn as_raw(&self) -> *mut Il2CppThread {
@@ -542,16 +575,19 @@ impl Thread {
 }
 
 // Delegate creation
-pub fn create_delegate(delegate_class: *mut Il2CppClass, args_count: i32, method_ptr: fn()) -> Option<*mut Il2CppDelegate> {
+pub fn create_delegate(
+    delegate_class: *mut Il2CppClass,
+    args_count: i32,
+    method_ptr: fn(),
+) -> Option<*mut Il2CppDelegate> {
     let delegate_invoke = get_method_cached(delegate_class, c"Invoke", args_count).ok()?;
-    
+
     let delegate_ctor_addr = get_method_addr_cached(delegate_class, c".ctor", 2);
     if delegate_ctor_addr == 0 {
         return None;
     }
-    let delegate_ctor: extern "C" fn(*mut Il2CppObject, *mut Il2CppObject, *const MethodInfo) = unsafe {
-        std::mem::transmute(delegate_ctor_addr)
-    };
+    let delegate_ctor: extern "C" fn(*mut Il2CppObject, *mut Il2CppObject, *const MethodInfo) =
+        unsafe { std::mem::transmute(delegate_ctor_addr) };
 
     let delegate_obj = il2cpp_object_new(delegate_class);
     delegate_ctor(delegate_obj, delegate_obj, delegate_invoke);
@@ -576,9 +612,7 @@ impl SingletonLike {
             return None;
         }
 
-        Some(SingletonLike {
-            instance_field
-        })
+        Some(SingletonLike { instance_field })
     }
 
     pub fn instance(&self) -> *mut Il2CppObject {
@@ -614,7 +648,7 @@ impl Drop for GCHandle {
 #[repr(transparent)]
 pub struct Array<T = *mut Il2CppObject> {
     pub this: *mut Il2CppArray,
-    _phantom: PhantomData<T>
+    _phantom: PhantomData<T>,
 }
 
 impl<T> Array<T> {
@@ -629,8 +663,13 @@ impl<T> Array<T> {
         self.this.add(1) as _
     }
 
+    #[allow(clippy::mut_from_ref)]
     pub unsafe fn as_slice(&self) -> &mut [T] {
         std::slice::from_raw_parts_mut(self.data_ptr(), (*self.this).max_length)
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
     }
 
     pub fn len(&self) -> usize {
@@ -638,9 +677,9 @@ impl<T> Array<T> {
     }
 }
 
-impl<T> Into<*mut Il2CppArray> for Array<T> {
-    fn into(self) -> *mut Il2CppArray {
-        self.this
+impl<T> From<Array<T>> for *mut Il2CppArray {
+    fn from(val: Array<T>) -> Self {
+        val.this
     }
 }
 
@@ -648,21 +687,21 @@ impl<T> From<*mut Il2CppArray> for Array<T> {
     fn from(value: *mut Il2CppArray) -> Self {
         Self {
             this: value,
-            _phantom: PhantomData
+            _phantom: PhantomData,
         }
     }
 }
 
 pub struct FieldsIter {
     class: *mut Il2CppClass,
-    iter: *mut c_void
+    iter: *mut c_void,
 }
 
 impl FieldsIter {
     pub fn new(class: *mut Il2CppClass) -> Self {
         Self {
             class,
-            iter: null_mut()
+            iter: null_mut(),
         }
     }
 }
@@ -693,7 +732,7 @@ pub struct Il2CppDictionaryEntry<K, V> {
     pub hash_code: i32,
     pub next: i32,
     pub key: K,
-    pub value: V
+    pub value: V,
 }
 
 // Generic Dictionary wrapper
@@ -701,12 +740,12 @@ pub struct Il2CppDictionaryEntry<K, V> {
 pub struct Dictionary<K, V> {
     pub this: *mut Il2CppDictionary,
     _k: PhantomData<K>,
-    _v: PhantomData<V>
+    _v: PhantomData<V>,
 }
 
-impl<K, V> Into<*mut Il2CppDictionary> for Dictionary<K, V> {
-    fn into(self) -> *mut Il2CppDictionary {
-        self.this
+impl<K, V> From<Dictionary<K, V>> for *mut Il2CppDictionary {
+    fn from(val: Dictionary<K, V>) -> Self {
+        val.this
     }
 }
 
@@ -715,7 +754,7 @@ impl<K, V> From<*mut Il2CppDictionary> for Dictionary<K, V> {
         Self {
             this: value,
             _k: PhantomData,
-            _v: PhantomData
+            _v: PhantomData,
         }
     }
 }
@@ -749,6 +788,6 @@ impl<K: PartialEq, V> Dictionary<K, V> {
 
 impl<K: PartialEq + 'static, V> Dictionary<K, V> {
     pub fn get(&self, key: &K) -> Option<&'static mut V> {
-        self.find_entry(&key).map(|e| &mut e.value)
+        self.find_entry(key).map(|e| &mut e.value)
     }
 }
