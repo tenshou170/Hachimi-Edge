@@ -29,7 +29,7 @@ use crate::core::{
 
 use super::{main::DLL_HMODULE, utils};
 
-const REPO_PATH: &str = "kairusds/Hachimi-Edge";
+const REPO_PATH: &str = "tenshou170/Hachimi-Edge";
 
 #[derive(Default)]
 pub struct Updater {
